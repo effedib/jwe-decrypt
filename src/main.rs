@@ -1,3 +1,5 @@
+mod jwe;
+
 use rsa::Oaep;
 use rsa::RsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
@@ -13,6 +15,8 @@ use base64::{
     Engine as _, alphabet,
     engine::{self, general_purpose},
 };
+
+use crate::jwe::JweHeader;
 
 static BASE64_ENGINE: OnceLock<engine::GeneralPurpose> = OnceLock::new();
 
@@ -33,6 +37,9 @@ fn main() {
     let mut parts = token.split(".");
     let header_b64 = parts.next().expect("expected header not found");
     let header = parse_base64_string(header_b64);
+    println!("{}", header);
+    let h: JweHeader = serde_json::from_str(&header).expect("not serialized error");
+    println!("{}\t{}", h.alg, h.enc);
     let aad = header_b64.as_bytes();
     let cek = parts.next().unwrap();
     let key_encrypted = get_base64()
@@ -69,7 +76,6 @@ WHF8NVIYRmjWdMX9srDtqL/K
     let priv_key = RsaPrivateKey::from_pkcs8_pem(k).unwrap();
     let padding = Oaep::new::<Sha256>();
     let dec_key = priv_key.decrypt(padding, &key_encrypted).expect("error");
-    println!("{}", header);
 
     let iv_b64 = parts.next().expect("missing iv");
     let ciphertext_b64 = parts.next().expect("missing ciphertext");
