@@ -1,2 +1,2 @@
-mod header;
-pub use header::JweHeader;
+mod jwe;
+pub use jwe::{JweHeader, JweToken};
