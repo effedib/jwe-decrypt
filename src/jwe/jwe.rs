@@ -11,6 +11,7 @@ pub struct JweToken {
     pub key_decrypted: Option<Vec<u8>>,
     pub iv: Option<Vec<u8>>,
     pub ciphertext: Option<Vec<u8>>,
+    pub tag_bytes: Option<Vec<u8>>,
 }
 
 impl JweToken {
@@ -24,6 +25,7 @@ impl JweToken {
             key_decrypted: None,
             iv: None,
             ciphertext: None,
+            tag_bytes: None,
         }
     }
 }

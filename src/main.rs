@@ -92,9 +92,11 @@ fn main() {
         .try_into()
         .expect("Invalid nonce length (must be 12 bytes for AES-GCM)");
 
-    let tag_bytes = get_base64().decode(tag_b64).expect("failed to decode tag");
-    let tag = tag_bytes
-        .as_slice()
+    jwe_token.tag_bytes = Some(get_base64().decode(tag_b64).expect("failed to decode tag"));
+    let tag = jwe_token
+        .tag_bytes
+        .as_deref()
+        .unwrap()
         .try_into()
         .expect("Invalid tag length (must be 16 bytes for AES-GCM)");
 
