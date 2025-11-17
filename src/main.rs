@@ -1,51 +1,24 @@
 mod jwe;
+mod parser;
 
 use rsa::Oaep;
 use rsa::RsaPrivateKey;
 use rsa::pkcs8::DecodePrivateKey;
 use sha2::Sha256;
-use std::sync::OnceLock;
 
 use aes_gcm::{
     Aes256Gcm,
     aead::{AeadInPlace, KeyInit},
 };
 
-use base64::{
-    Engine as _, alphabet,
-    engine::{self, general_purpose},
-};
+use base64::Engine as _;
 
 use crate::jwe::JweHeader;
+use crate::parser::{get_base64, parse_base64_string, parse_jwe_input_string};
 
-static BASE64_ENGINE: OnceLock<engine::GeneralPurpose> = OnceLock::new();
-
-#[inline]
-fn get_base64() -> &'static engine::GeneralPurpose {
-    BASE64_ENGINE
-        .get_or_init(|| engine::GeneralPurpose::new(&alphabet::URL_SAFE, general_purpose::NO_PAD))
-}
-
-fn parse_base64_string(s: &str) -> String {
-    let s = get_base64().decode(s).expect("error decoding base64");
-    let s = str::from_utf8(&s).expect("error decoding string");
-    s.to_string()
-}
-
-fn main() {
+fn create_token_and_key() -> [String; 2] {
     let token = "eyJhbGciOiAiUlNBLU9BRVAtMjU2IiwgImVuYyI6ICJBMjU2R0NNIiwgInR5cCI6ICJKV0UifQ.e2ioQVm4Q7Pqhg2R8GdizJ3JpWJH4BV37UlJXvU_8mMXBUZMpx51-zv2loeHRMKR5KwRpn7yYfihngQSZKLYNiSrz6Hpyom4Ko-gOyC1qKJ9Asybo068ITPmxqcd4bGPldHa8WoLg9IP_lU_xbqA0H6qdWUQu5ODNn3j37ZhS9tqBV_tTChVUtSRxVxDz34KzfYsglYIQl25zMypD7kl4B-yhfprvem5hdCIayhGU2GoR8pmb3p-BG3ijdfZeNwDvzJPGoSymTF7fI1gM-4pwmWyiuqv3ejbqvf-RGTi6GEkGNLO6CaNV810UlOn84yG6C6fxJMBut2XoTIkf5bOeg.q16Q-_YmNq0hKdPv.dDVe4F9xFnV6dWDUL-_LMA-zTgoCiqHE1mHEdMyIPCplhBVQVQ.wo_iBS3dHtURjXjqfDpSbA";
-    let mut parts = token.split(".");
-    let header_b64 = parts.next().expect("expected header not found");
-    let header = parse_base64_string(header_b64);
-    println!("{}", header);
-    let h: JweHeader = serde_json::from_str(&header).expect("not serialized error");
-    println!("{}\t{}", h.alg, h.enc);
-    let aad = header_b64.as_bytes();
-    let cek = parts.next().unwrap();
-    let key_encrypted = get_base64()
-        .decode(cek)
-        .expect("error converting key from base64");
-    let k = "-----BEGIN PRIVATE KEY-----
+    let key = "-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCj0bD8nk/R4983
 /AunjXRChKd+KvUxESNb6KVkpwmrFHSX/vnlfmzFkEkY37nFzbF/HY1137RgRmw+
 7jbDR3uzIqLnr4W1U6EW71qYC5SvQNFeq0tSQK2IzaYbbowTHqTbZqRNt7kJuHid
@@ -73,13 +46,25 @@ pGPi3dAGy34/11igst0bmgWkwTC5sTyDAC98QgltCNdSvjVPqtsIE9rEPuYyYJdZ
 lMPGF7y1ZKnS9qMgyfn/ru8PPk6yqP+jOVW0RshBGjm6q72Kzdk3UsgxiV7XQeOX
 WHF8NVIYRmjWdMX9srDtqL/K
 -----END PRIVATE KEY-----";
-    let priv_key = RsaPrivateKey::from_pkcs8_pem(k).unwrap();
+
+    [token.to_string(), key.to_string()]
+}
+
+fn main() {
+    let [token, original_key] = create_token_and_key();
+    let [header_b64, cek, iv_b64, ciphertext_b64, tag_b64] =
+        parse_jwe_input_string(token.as_str()).unwrap();
+    let header = parse_base64_string(header_b64);
+    let h: JweHeader = serde_json::from_str(&header).expect("not serialized error");
+    // aad: additional authenticated data
+    let aad = header_b64.as_bytes();
+    let key_encrypted = get_base64()
+        .decode(cek)
+        .expect("error converting key from base64");
+
+    let priv_key = RsaPrivateKey::from_pkcs8_pem(original_key.as_str()).unwrap();
     let padding = Oaep::new::<Sha256>();
     let dec_key = priv_key.decrypt(padding, &key_encrypted).expect("error");
-
-    let iv_b64 = parts.next().expect("missing iv");
-    let ciphertext_b64 = parts.next().expect("missing ciphertext");
-    let tag_b64 = parts.next().expect("missing tag");
 
     let iv = get_base64().decode(iv_b64).expect("failed to decode iv");
     let ciphertext = get_base64()
