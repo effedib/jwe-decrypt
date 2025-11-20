@@ -67,13 +67,11 @@ fn main() {
             .expect("error converting key from base64"),
     );
 
-    let decryptor = AlgorithmFactory::get_key_decryptor(jwe_token.header.unwrap().alg.as_str());
-    let priv_key = RsaPrivateKey::from_pkcs8_pem(original_key.as_str()).unwrap();
-    let padding = Oaep::new::<Sha256>();
-    jwe_token.key_decrypted = Some(
-        priv_key
-            .decrypt(padding, jwe_token.key_encrypted.as_deref().unwrap())
-            .expect("error"),
+    let decryptor =
+        AlgorithmFactory::get_key_decryptor(jwe_token.header.unwrap().alg.as_str()).unwrap();
+    let key_decrypted = decryptor.decrypt_cek(
+        original_key.as_bytes(),
+        jwe_token.key_encrypted.unwrap().as_slice(),
     );
 
     jwe_token.iv = Some(get_base64().decode(iv_b64).expect("failed to decode iv"));
@@ -83,7 +81,7 @@ fn main() {
             .expect("failed to decode ciphertext"),
     );
 
-    let cipher = Aes256Gcm::new_from_slice(jwe_token.key_decrypted.as_deref().unwrap())
+    let cipher = Aes256Gcm::new_from_slice(key_decrypted.unwrap().as_slice())
         .expect("Invalid key length -- this should not happen as the CEK is 32 bytes");
 
     let nonce = jwe_token

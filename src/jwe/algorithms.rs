@@ -7,17 +7,10 @@ use sha1::Sha1;
 use sha2::Sha256;
 use std::error::Error;
 
-use crate::jwe::JweHeader;
-
 pub type CryptoResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 pub trait KeyDecryptor {
-    fn decrypt_cek(
-        &self,
-        input_key: &[u8],
-        encrypted_key: &[u8],
-        header: JweHeader,
-    ) -> CryptoResult<Vec<u8>>;
+    fn decrypt_cek(&self, input_key: &[u8], encrypted_key: &[u8]) -> CryptoResult<Vec<u8>>;
 }
 
 pub trait ContentDecryptor {
@@ -88,12 +81,7 @@ impl ContentDecryptor for AesGcmContentDecryptor {
 pub struct DirectKeyDecryptor;
 
 impl KeyDecryptor for DirectKeyDecryptor {
-    fn decrypt_cek(
-        &self,
-        input_key: &[u8],
-        encrypted_key: &[u8],
-        _header: JweHeader,
-    ) -> CryptoResult<Vec<u8>> {
+    fn decrypt_cek(&self, input_key: &[u8], encrypted_key: &[u8]) -> CryptoResult<Vec<u8>> {
         if !encrypted_key.is_empty() {
             return Err(format!("With 'dir' algorithm, encrypted_key must be empty").into());
         }
@@ -114,12 +102,7 @@ impl RsaKeyDecryptor {
 }
 
 impl KeyDecryptor for RsaKeyDecryptor {
-    fn decrypt_cek(
-        &self,
-        input_key: &[u8],
-        encrypted_key: &[u8],
-        _header: JweHeader,
-    ) -> CryptoResult<Vec<u8>> {
+    fn decrypt_cek(&self, input_key: &[u8], encrypted_key: &[u8]) -> CryptoResult<Vec<u8>> {
         let key_str = std::str::from_utf8(input_key)
             .map_err(|_| "The RSA key received is not a valid UTF-8")?;
         let private_key = RsaPrivateKey::from_pkcs1_pem(key_str)
