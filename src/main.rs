@@ -13,7 +13,7 @@ use aes_gcm::{
 
 use base64::Engine as _;
 
-use crate::jwe::JweToken;
+use crate::jwe::{AlgorithmFactory, JweToken};
 use crate::parser::{get_base64, parse_base64_string, parse_jwe_input_string};
 
 fn create_token_and_key() -> [String; 2] {
@@ -67,6 +67,7 @@ fn main() {
             .expect("error converting key from base64"),
     );
 
+    let decryptor = AlgorithmFactory::get_key_decryptor(jwe_token.header.unwrap().alg.as_str());
     let priv_key = RsaPrivateKey::from_pkcs8_pem(original_key.as_str()).unwrap();
     let padding = Oaep::new::<Sha256>();
     jwe_token.key_decrypted = Some(

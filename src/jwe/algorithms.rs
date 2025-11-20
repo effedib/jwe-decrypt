@@ -70,25 +70,22 @@ impl ContentDecryptor for AesGcmContentDecryptor {
                     .try_into()
                     .map_err(|_| "CEK length mismatch: expected 16 bytes (A128GCM)")?;
                 let key = Key::<Aes128Gcm>::from(key_array);
-                Aes128Gcm::new(&key)
-                    .decrypt(&nonce, payload)
-                    .map_err(|e| format!("Decryption failed (A128): {}", e).into())
+                Aes128Gcm::new(&key).decrypt(&nonce, payload)
             }
             32 => {
                 let key_array: [u8; 32] = cek
                     .try_into()
                     .map_err(|_| "CEK length mismatch: expected 32 bytes (A256GCM)")?;
                 let key = Key::<Aes256Gcm>::from(key_array);
-                Aes256Gcm::new(&key)
-                    .decrypt(&nonce, payload)
-                    .map_err(|e| format!("Decryption failed (A256): {}", e).into())
+                Aes256Gcm::new(&key).decrypt(&nonce, payload)
             }
-            _ => Err(format!("Unsupported key length: {}", self.key_len).into()),
+            _ => return Err(format!("Unsupported key length: {}", self.key_len).into()),
         }
+        .map_err(|e| format!("Decryption failed: {}", e).into())
     }
 }
 
-pub struct DirectKeyDecryptor {}
+pub struct DirectKeyDecryptor;
 
 impl KeyDecryptor for DirectKeyDecryptor {
     fn decrypt_cek(
@@ -138,5 +135,25 @@ impl KeyDecryptor for RsaKeyDecryptor {
         private_key
             .decrypt(padding, encrypted_key)
             .map_err(|e| format!("Failed RSA decrypt: {}", e).into())
+    }
+}
+
+pub struct AlgorithmFactory;
+
+impl AlgorithmFactory {
+    pub fn get_key_decryptor(alg: &str) -> Result<Box<dyn KeyDecryptor>, String> {
+        match alg {
+            "dir" => Ok(Box::new(DirectKeyDecryptor)),
+            "RSA-OAEP" | "RSA-OAEP-256" => Ok(Box::new(RsaKeyDecryptor::new(alg))),
+            _ => Err(format!("Unsupported alg: {}", alg)),
+        }
+    }
+
+    pub fn get_content_decryptor(enc: &str) -> Result<Box<dyn ContentDecryptor>, String> {
+        match enc {
+            "A128GCM" => Ok(Box::new(AesGcmContentDecryptor::new(16))),
+            "A256GCM" => Ok(Box::new(AesGcmContentDecryptor::new(32))),
+            _ => Err(format!("Unsupported enc: {}", enc)),
+        }
     }
 }
