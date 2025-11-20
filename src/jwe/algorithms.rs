@@ -2,6 +2,9 @@ use aes_gcm::{
     Aes128Gcm, Aes256Gcm, Key, KeyInit, Nonce,
     aead::{Aead, Payload},
 };
+use rsa::{Oaep, RsaPrivateKey, pkcs1::DecodeRsaPrivateKey, pkcs8::DecodePrivateKey};
+use sha1::Sha1;
+use sha2::Sha256;
 use std::error::Error;
 
 use crate::jwe::JweHeader;
@@ -82,5 +85,58 @@ impl ContentDecryptor for AesGcmContentDecryptor {
             }
             _ => Err(format!("Unsupported key length: {}", self.key_len).into()),
         }
+    }
+}
+
+pub struct DirectKeyDecryptor {}
+
+impl KeyDecryptor for DirectKeyDecryptor {
+    fn decrypt_cek(
+        &self,
+        input_key: &[u8],
+        encrypted_key: &[u8],
+        _header: JweHeader,
+    ) -> CryptoResult<Vec<u8>> {
+        if !encrypted_key.is_empty() {
+            return Err(format!("With 'dir' algorithm, encrypted_key must be empty").into());
+        }
+        Ok(input_key.to_vec())
+    }
+}
+
+pub struct RsaKeyDecryptor {
+    alg_name: String,
+}
+
+impl RsaKeyDecryptor {
+    pub fn new(alg_name: &str) -> Self {
+        Self {
+            alg_name: alg_name.to_string(),
+        }
+    }
+}
+
+impl KeyDecryptor for RsaKeyDecryptor {
+    fn decrypt_cek(
+        &self,
+        input_key: &[u8],
+        encrypted_key: &[u8],
+        _header: JweHeader,
+    ) -> CryptoResult<Vec<u8>> {
+        let key_str = std::str::from_utf8(input_key)
+            .map_err(|_| "The RSA key received is not a valid UTF-8")?;
+        let private_key = RsaPrivateKey::from_pkcs1_pem(key_str)
+            .or_else(|_| RsaPrivateKey::from_pkcs8_pem(key_str))
+            .map_err(|e| format!("Error while loading RSA key: {}", e))?;
+
+        let padding = match self.alg_name.as_str() {
+            "RSA-OAEP" => Oaep::new::<Sha1>(),
+            "RSA-OAEP-256" => Oaep::new::<Sha256>(),
+            _ => return Err(format!("Algorithm not supported: {}", self.alg_name).into()),
+        };
+
+        private_key
+            .decrypt(padding, encrypted_key)
+            .map_err(|e| format!("Failed RSA decrypt: {}", e).into())
     }
 }
