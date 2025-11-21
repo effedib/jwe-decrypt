@@ -1,19 +1,9 @@
 mod jwe;
 mod parser;
 
-use rsa::Oaep;
-use rsa::RsaPrivateKey;
-use rsa::pkcs8::DecodePrivateKey;
-use sha2::Sha256;
-
-use aes_gcm::{
-    Aes256Gcm,
-    aead::{AeadInPlace, KeyInit},
-};
-
 use base64::Engine as _;
 
-use crate::jwe::{AlgorithmFactory, JweToken};
+use crate::jwe::{AlgorithmFactory, JweHeader};
 use crate::parser::{get_base64, parse_base64_string, parse_jwe_input_string};
 
 fn create_token_and_key() -> [String; 2] {
@@ -52,59 +42,35 @@ WHF8NVIYRmjWdMX9srDtqL/K
 
 fn main() {
     let [token, original_key] = create_token_and_key();
-    let [header_b64, cek, iv_b64, ciphertext_b64, tag_b64] =
+    let [header_b64, cek_b64, iv_b64, ciphertext_b64, tag_b64] =
         parse_jwe_input_string(token.as_str()).unwrap();
-    let mut jwe_token = JweToken::new(header_b64.to_string());
-    let header = parse_base64_string(jwe_token.header_b64.as_str());
-    jwe_token.header = Some(serde_json::from_str(&header).expect("not serialized error"));
-    jwe_token.header_string = Some(header);
+    let header = parse_base64_string(header_b64);
+    let jwe_header: JweHeader = serde_json::from_str(&header).expect("not serialized error");
     // aad: additional authenticated data
-    //let aad = header_b64.as_bytes();
-    jwe_token.aad = Some(header_b64.as_bytes().to_vec());
-    jwe_token.key_encrypted = Some(
-        get_base64()
-            .decode(cek)
-            .expect("error converting key from base64"),
-    );
+    let aad = header_b64.as_bytes();
+    let key_encrypted = get_base64()
+        .decode(cek_b64)
+        .expect("error converting key from base64");
 
-    let decryptor =
-        AlgorithmFactory::get_key_decryptor(jwe_token.header.unwrap().alg.as_str()).unwrap();
-    let key_decrypted = decryptor.decrypt_cek(
-        original_key.as_bytes(),
-        jwe_token.key_encrypted.unwrap().as_slice(),
-    );
+    let key_decryptor = AlgorithmFactory::get_key_decryptor(jwe_header.alg.as_str()).unwrap();
+    let key_decrypted = key_decryptor
+        .decrypt_cek(original_key.as_bytes(), &key_encrypted)
+        .unwrap();
 
-    jwe_token.iv = Some(get_base64().decode(iv_b64).expect("failed to decode iv"));
-    jwe_token.ciphertext = Some(
-        get_base64()
-            .decode(ciphertext_b64)
-            .expect("failed to decode ciphertext"),
-    );
+    let iv = get_base64().decode(iv_b64).expect("failed to decode iv");
+    let ciphertext = get_base64()
+        .decode(ciphertext_b64)
+        .expect("failed to decode ciphertext");
 
-    let cipher = Aes256Gcm::new_from_slice(key_decrypted.unwrap().as_slice())
-        .expect("Invalid key length -- this should not happen as the CEK is 32 bytes");
+    let tag = get_base64().decode(tag_b64).expect("failed to decode tag");
 
-    let nonce = jwe_token
-        .iv
-        .as_deref()
-        .unwrap()
-        .try_into()
-        .expect("Invalid nonce length (must be 12 bytes for AES-GCM)");
+    let content_decryptor =
+        AlgorithmFactory::get_content_decryptor(jwe_header.enc.as_str()).unwrap();
+    let cipher = content_decryptor
+        .decrypt_payload(&key_decrypted, aad, &iv, &ciphertext, &tag)
+        .unwrap();
 
-    jwe_token.tag_bytes = Some(get_base64().decode(tag_b64).expect("failed to decode tag"));
-    let tag = jwe_token
-        .tag_bytes
-        .as_deref()
-        .unwrap()
-        .try_into()
-        .expect("Invalid tag length (must be 16 bytes for AES-GCM)");
-
-    let mut buffer = jwe_token.ciphertext.unwrap();
-    cipher
-        .decrypt_in_place_detached(nonce, jwe_token.aad.as_deref().unwrap(), &mut buffer, tag)
-        .expect("DECRYPTION FAILED: authentication tag mismatch");
-
-    let payload_string = String::from_utf8(buffer).expect("payload is not valid UTF-8");
+    let payload_string = String::from_utf8(cipher).expect("payload is not valid UTF-8");
 
     println!("{}", payload_string);
 }

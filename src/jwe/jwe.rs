@@ -2,34 +2,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
-pub struct JweToken {
-    pub header: Option<JweHeader>,
-    pub header_b64: String,
-    pub header_string: Option<String>,
-    pub aad: Option<Vec<u8>>,
-    pub key_encrypted: Option<Vec<u8>>,
-    pub key_decrypted: Option<Vec<u8>>,
-    pub iv: Option<Vec<u8>>,
-    pub ciphertext: Option<Vec<u8>>,
-    pub tag_bytes: Option<Vec<u8>>,
-}
-
-impl JweToken {
-    pub fn new(h: String) -> JweToken {
-        Self {
-            header_b64: h,
-            header: None,
-            header_string: None,
-            aad: None,
-            key_encrypted: None,
-            key_decrypted: None,
-            iv: None,
-            ciphertext: None,
-            tag_bytes: None,
-        }
-    }
-}
-
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct JweHeader {
     pub alg: String,
