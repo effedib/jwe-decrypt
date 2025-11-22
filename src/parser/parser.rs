@@ -3,20 +3,40 @@ use base64::{
     engine::{self, general_purpose},
 };
 use std::sync::OnceLock;
-use thiserror::Error;
+use std::{fmt, string};
 
-#[derive(Error, Debug, PartialEq, Eq)]
-pub enum Base64Error {
-    #[error("Base64 decoding failed")]
-    DecodeBase64(#[from] base64::DecodeError),
-    #[error("Invalid UTF-8 string")]
-    DecodeString(#[from] std::string::FromUtf8Error),
-}
+use crate::jwe::JweToken;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum JweParseError {
-    MissingParts,
-    TooManyParts,
+    MissingParts(),
+    TooManyParts(),
+    InvalidBase64(base64::DecodeError),
+    InvalidUtf8Error(string::FromUtf8Error)
+}
+
+impl fmt::Display for JweParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let message = match self {
+            JweParseError::MissingParts() => "Missing JWE section".to_string(),
+            JweParseError::TooManyParts() => "Unespected section".to_string(),
+            JweParseError::InvalidBase64(e) => format!("Base64 decoding failed: {}", e),
+            JweParseError::InvalidUtf8Error(e) => format!("Invalid UTF-8 string: {}", e)
+        };
+        write!(f, "{}", message)
+    }
+}
+
+impl From<base64::DecodeError> for JweParseError {
+    fn from(e: base64::DecodeError) -> Self {
+        JweParseError::InvalidBase64(e)
+    }
+}
+
+impl From<string::FromUtf8Error> for JweParseError {
+    fn from(e: string::FromUtf8Error) -> Self {
+        JweParseError::InvalidUtf8Error(e)
+    }
 }
 
 static BASE64_ENGINE: OnceLock<engine::GeneralPurpose> = OnceLock::new();
@@ -27,19 +47,32 @@ pub fn get_base64() -> &'static engine::GeneralPurpose {
         .get_or_init(|| engine::GeneralPurpose::new(&alphabet::URL_SAFE, general_purpose::NO_PAD))
 }
 
-pub fn parse_base64_string(string_to_parse: &str) -> Result<String, Base64Error> {
+pub fn parse_base64_string(string_to_parse: &str) -> Result<String, JweParseError> {
     let bytes = get_base64().decode(string_to_parse)?;
     let string = String::from_utf8(bytes)?;
     Ok(string)
 }
 
-pub fn parse_jwe_input_string(token: &str) -> Result<[&str; 5], JweParseError> {
-    let parts: Vec<&str> = token.split(".").collect();
-    parts.try_into().map_err(|vec: Vec<&str>| {
+pub fn split_jwe(token: &str) -> Result<[&str; 5], JweParseError> {
+    //FIX ME: try deserialize better with serde
+    let parts = token.split(".").collect::<Vec<&str>>().try_into().map_err(|vec: Vec<&str>| {
         if vec.len() < 5 {
-            JweParseError::MissingParts
+            JweParseError::MissingParts()
         } else {
-            JweParseError::TooManyParts
+            JweParseError::TooManyParts()
         }
-    })
+    });
+    parts
+}
+
+pub fn parse_jwe(token: &str) -> Result<JweToken, JweParseError>{
+    let parts = split_jwe(token)?;
+    
+    let header = parse_base64_string(parts[0])?;
+    let key_encrypted = get_base64().decode(parts[1])?;
+    let iv = get_base64().decode(parts[2])?;
+    let ciphertext = get_base64().decode(parts[3])?;
+    let tag = get_base64().decode(parts[4])?;
+
+    Ok(JweToken::new(header, key_encrypted, iv, ciphertext, tag))
 }

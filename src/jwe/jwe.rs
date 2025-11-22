@@ -66,3 +66,24 @@ pub struct JweHeader {
     pub p2c: Option<String>,
     */
 }
+
+#[derive(Debug)]
+pub struct JweToken {
+    pub header: String,
+    pub key_encrypted: Vec<u8>,
+    pub iv: Vec<u8>,
+    pub ciphertext: Vec<u8>,
+    pub tag: Vec<u8>
+}
+
+impl JweToken {
+    pub fn new(header: String, key_encrypted: Vec<u8>, iv: Vec<u8>, ciphertext: Vec<u8>, tag: Vec<u8>) -> Self {
+        Self {
+            header,
+            key_encrypted,
+            iv,
+            ciphertext,
+            tag
+        }
+    }
+}

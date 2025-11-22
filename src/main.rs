@@ -4,7 +4,7 @@ mod parser;
 use base64::Engine as _;
 
 use crate::jwe::{AlgorithmFactory, JweHeader};
-use crate::parser::{get_base64, parse_base64_string, parse_jwe_input_string};
+use crate::parser::{get_base64, parse_base64_string, parse_jwe};
 
 fn create_token_and_key() -> [String; 2] {
     let token = "eyJhbGciOiAiUlNBLU9BRVAtMjU2IiwgImVuYyI6ICJBMjU2R0NNIiwgInR5cCI6ICJKV0UifQ.e2ioQVm4Q7Pqhg2R8GdizJ3JpWJH4BV37UlJXvU_8mMXBUZMpx51-zv2loeHRMKR5KwRpn7yYfihngQSZKLYNiSrz6Hpyom4Ko-gOyC1qKJ9Asybo068ITPmxqcd4bGPldHa8WoLg9IP_lU_xbqA0H6qdWUQu5ODNn3j37ZhS9tqBV_tTChVUtSRxVxDz34KzfYsglYIQl25zMypD7kl4B-yhfprvem5hdCIayhGU2GoR8pmb3p-BG3ijdfZeNwDvzJPGoSymTF7fI1gM-4pwmWyiuqv3ejbqvf-RGTi6GEkGNLO6CaNV810UlOn84yG6C6fxJMBut2XoTIkf5bOeg.q16Q-_YmNq0hKdPv.dDVe4F9xFnV6dWDUL-_LMA-zTgoCiqHE1mHEdMyIPCplhBVQVQ.wo_iBS3dHtURjXjqfDpSbA";
@@ -42,28 +42,22 @@ WHF8NVIYRmjWdMX9srDtqL/K
 
 fn main() {
     let [token, original_key] = create_token_and_key();
-    let [header_b64, cek_b64, iv_b64, ciphertext_b64, tag_b64] =
-        parse_jwe_input_string(token.as_str()).unwrap();
+    let jwe_token =
+        parse_jwe(token.as_str()).unwrap();
 
-    let header = parse_base64_string(header_b64).unwrap();
-    let key_encrypted = get_base64().decode(cek_b64).unwrap();
-    let iv = get_base64().decode(iv_b64).unwrap();
-    let ciphertext = get_base64().decode(ciphertext_b64).unwrap();
-    let tag = get_base64().decode(tag_b64).unwrap();
+    let jwe_header: JweHeader = serde_json::from_str(&jwe_token.header).expect("not serialized error");
 
-    let jwe_header: JweHeader = serde_json::from_str(&header).expect("not serialized error");
-
-    let aad = header_b64.as_bytes();
+    let aad = jwe_token.header.as_bytes();
 
     let key_decryptor = AlgorithmFactory::get_key_decryptor(jwe_header.alg.as_str()).unwrap();
     let key_decrypted = key_decryptor
-        .decrypt_cek(original_key.as_bytes(), &key_encrypted)
+        .decrypt_cek(original_key.as_bytes(), &jwe_token.key_encrypted)
         .unwrap();
 
     let content_decryptor =
         AlgorithmFactory::get_content_decryptor(jwe_header.enc.as_str()).unwrap();
     let cipher = content_decryptor
-        .decrypt_payload(&key_decrypted, aad, &iv, &ciphertext, &tag)
+        .decrypt_payload(&key_decrypted, aad, &jwe_token.iv, &jwe_token.ciphertext, &jwe_token.tag)
         .unwrap();
 
     let payload_string = String::from_utf8(cipher).expect("payload is not valid UTF-8");
