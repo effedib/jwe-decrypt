@@ -3,6 +3,15 @@ use base64::{
     engine::{self, general_purpose},
 };
 use std::sync::OnceLock;
+use thiserror::Error;
+
+#[derive(Error, Debug, PartialEq, Eq)]
+pub enum Base64Error {
+    #[error("Base64 decoding failed")]
+    DecodeBase64(#[from] base64::DecodeError),
+    #[error("Invalid UTF-8 string")]
+    DecodeString(#[from] std::string::FromUtf8Error),
+}
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum JweParseError {
@@ -18,10 +27,10 @@ pub fn get_base64() -> &'static engine::GeneralPurpose {
         .get_or_init(|| engine::GeneralPurpose::new(&alphabet::URL_SAFE, general_purpose::NO_PAD))
 }
 
-pub fn parse_base64_string(s: &str) -> String {
-    let s = get_base64().decode(s).expect("error decoding base64");
-    let s = str::from_utf8(&s).expect("error decoding string");
-    s.to_string()
+pub fn parse_base64_string(string_to_parse: &str) -> Result<String, Base64Error> {
+    let bytes = get_base64().decode(string_to_parse)?;
+    let string = String::from_utf8(bytes)?;
+    Ok(string)
 }
 
 pub fn parse_jwe_input_string(token: &str) -> Result<[&str; 5], JweParseError> {

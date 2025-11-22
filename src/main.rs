@@ -44,25 +44,21 @@ fn main() {
     let [token, original_key] = create_token_and_key();
     let [header_b64, cek_b64, iv_b64, ciphertext_b64, tag_b64] =
         parse_jwe_input_string(token.as_str()).unwrap();
-    let header = parse_base64_string(header_b64);
+
+    let header = parse_base64_string(header_b64).unwrap();
+    let key_encrypted = get_base64().decode(cek_b64).unwrap();
+    let iv = get_base64().decode(iv_b64).unwrap();
+    let ciphertext = get_base64().decode(ciphertext_b64).unwrap();
+    let tag = get_base64().decode(tag_b64).unwrap();
+
     let jwe_header: JweHeader = serde_json::from_str(&header).expect("not serialized error");
-    // aad: additional authenticated data
+
     let aad = header_b64.as_bytes();
-    let key_encrypted = get_base64()
-        .decode(cek_b64)
-        .expect("error converting key from base64");
 
     let key_decryptor = AlgorithmFactory::get_key_decryptor(jwe_header.alg.as_str()).unwrap();
     let key_decrypted = key_decryptor
         .decrypt_cek(original_key.as_bytes(), &key_encrypted)
         .unwrap();
-
-    let iv = get_base64().decode(iv_b64).expect("failed to decode iv");
-    let ciphertext = get_base64()
-        .decode(ciphertext_b64)
-        .expect("failed to decode ciphertext");
-
-    let tag = get_base64().decode(tag_b64).expect("failed to decode tag");
 
     let content_decryptor =
         AlgorithmFactory::get_content_decryptor(jwe_header.enc.as_str()).unwrap();
