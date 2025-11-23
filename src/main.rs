@@ -1,45 +1,43 @@
 mod jwe;
 mod parser;
 
+use clap::{Arg, Command};
+use std::{
+    fs,
+    io::{self, Read},
+};
+
 use crate::jwe::{AlgorithmFactory, JweHeader};
 use crate::parser::parse_jwe;
 
-fn create_token_and_key() -> [String; 2] {
-    let token = "eyJhbGciOiAiUlNBLU9BRVAtMjU2IiwgImVuYyI6ICJBMjU2R0NNIiwgInR5cCI6ICJKV0UifQ.e2ioQVm4Q7Pqhg2R8GdizJ3JpWJH4BV37UlJXvU_8mMXBUZMpx51-zv2loeHRMKR5KwRpn7yYfihngQSZKLYNiSrz6Hpyom4Ko-gOyC1qKJ9Asybo068ITPmxqcd4bGPldHa8WoLg9IP_lU_xbqA0H6qdWUQu5ODNn3j37ZhS9tqBV_tTChVUtSRxVxDz34KzfYsglYIQl25zMypD7kl4B-yhfprvem5hdCIayhGU2GoR8pmb3p-BG3ijdfZeNwDvzJPGoSymTF7fI1gM-4pwmWyiuqv3ejbqvf-RGTi6GEkGNLO6CaNV810UlOn84yG6C6fxJMBut2XoTIkf5bOeg.q16Q-_YmNq0hKdPv.dDVe4F9xFnV6dWDUL-_LMA-zTgoCiqHE1mHEdMyIPCplhBVQVQ.wo_iBS3dHtURjXjqfDpSbA";
-    let key = "-----BEGIN PRIVATE KEY-----
-MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQCj0bD8nk/R4983
-/AunjXRChKd+KvUxESNb6KVkpwmrFHSX/vnlfmzFkEkY37nFzbF/HY1137RgRmw+
-7jbDR3uzIqLnr4W1U6EW71qYC5SvQNFeq0tSQK2IzaYbbowTHqTbZqRNt7kJuHid
-v2LCEhZyDPRsdsdzR5Bl/F35J4SpboiCOn52wigrQAki7CgJOeboQECxIJ7GPXYC
-d5ZFwa2xTx89l4ctG15t+75k43iotKeraIUqMu1CTvOAZtITo1KW7f9FyPPFpz/p
-hjNeQqr/OqCSRllyy3+djGbGqFf6WsFmJGmkypThAq6phA4DeIGY6OEEVGctM/jK
-QDEB90RrAgMBAAECggEAEI8THU3hUp1+hDmxcePOAyVGiu3LsASD9vfatARgaU8d
-g/mth+GSHBw8D0waCqEClo9Fq8sLgAnOSkQo++8/VTmkjtfCo7QK3fceyKyvAFIE
-d9XHvM413FSxPCed+BbKYjULWaG/Dfj8FDHyyRwr8aZWlJojCgeLVIvAcf1pHvkY
-GOzgZplfTML2gQ0DKhYCTEbhlceA6eXxiT19gcugUcJyaLhdRb0dZaVqIKE+/iTJ
-2W+YiUv4yaUlA+ro8TWOYDKBNuZpEzO01+uYW2L5b//GPM9pBttzpkVX3HwyGZOe
-Qos7b4IZK9F/y8TRpHDqrDXvnL2vFKHtvTymoiqI7QKBgQDmnvlEmwwMleguQVID
-GX1AQu8tpQlPv6D+quaHNFDd1u0+zNg8d5ZJvL02SK1Bpo9RtSN9M8Y4e7nIUrKb
-ETZ6qMatEwIkMzirXKGPdNE94272Bnalg1xGvZNNNJtKK96pXaCNPqFWSvfanimH
-yIdwrsOqPgvIZExvaLt2Z+r7FQKBgQC12Mh8/AvTMnsHzgwjE+bCMC2zZWUXq+Yf
-/6FWgri+fJ7jxtYhh4mO7xUm+cjTvDBFvfKQofx6vyB+tL/y6dP7b0nfY7IUPSIB
-LMlshAvu9HKGEAIZ/CFGroIqo38q6iVOCFdrru1gmK7PvpT/LWAMaFqWuMkK5k//
-WyCHZ6shfwKBgE+fhYp1SaSywRXvQYSGcWMVeQS2XU+mZsxmbu8xVdYx1XmAOgwu
-cboFqwIp93+aJRNdyeH5VS+9L/iE7NtzBu80hFvPG0cqVB99/N3NxExs0KuqsZ4V
-i291Fn1qc08ZdGffRoZdoFBt08MsJkSWLITwIegOQf0u++DfNRH9cPi9AoGBAK1A
-L6tcW0vJMYw7FDcrU9Q5IKFlfg4yeVqNK0KH4smhY6QxoXtqbXVfdXCf1GVeS0N2
-+C4yFqE/jQ8K2EHv40YPPnt1uYkswUQLTpBzsgbkoGP3xnjJTU7RHjTPdm4FjKsu
-qVNv4rsAXLSSp9QCgBryJTSqMuiOizMHuBMpgtKzAoGBAI53Eo30rDcD/qmPuG70
-pGPi3dAGy34/11igst0bmgWkwTC5sTyDAC98QgltCNdSvjVPqtsIE9rEPuYyYJdZ
-lMPGF7y1ZKnS9qMgyfn/ru8PPk6yqP+jOVW0RshBGjm6q72Kzdk3UsgxiV7XQeOX
-WHF8NVIYRmjWdMX9srDtqL/K
------END PRIVATE KEY-----";
-
-    [token.to_string(), key.to_string()]
-}
-
 fn main() {
-    let [token, original_key] = create_token_and_key();
+    let matches = Command::new("jwtinfo")
+        .version(env!("CARGO_PKG_VERSION"))
+        .about("Shows information about a JWT (Json Web Token)")
+        .args([
+            Arg::new("token")
+                .index(1)
+                .allow_hyphen_values(true)
+                .required(true)
+                .help("the JWT/JWE as a string (use \"-\" to read from stdin)"),
+            Arg::new("key")
+                .index(2)
+                .required(true)
+                .help("the path to the private key for the cek decryption"),
+        ])
+        .get_matches();
+
+    let mut token = matches.get_one::<String>("token").unwrap().clone();
+    let mut buffer = String::new();
+
+    if token == "-" {
+        io::stdin().read_to_string(&mut buffer).unwrap();
+        token = (*buffer.trim()).to_string();
+    }
+
+    let original_key_path = matches.get_one::<String>("key").unwrap().clone();
+    let original_key = fs::read(original_key_path.as_str()).unwrap();
+
     let jwe_token = parse_jwe(token.as_str()).unwrap();
 
     let jwe_header: JweHeader =
@@ -47,7 +45,7 @@ fn main() {
 
     let key_decryptor = AlgorithmFactory::get_key_decryptor(jwe_header.alg.as_str()).unwrap();
     let key_decrypted = key_decryptor
-        .decrypt_cek(original_key.as_bytes(), &jwe_token.key_encrypted)
+        .decrypt_cek(&original_key, &jwe_token.key_encrypted)
         .unwrap();
 
     let content_decryptor =
