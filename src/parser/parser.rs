@@ -54,7 +54,6 @@ fn parse_base64_string(string_to_parse: &str) -> Result<String, JweParseError> {
 }
 
 pub fn split_jwe(token: &str) -> Result<[&str; 5], JweParseError> {
-    //FIX ME: try deserialize better with serde
     let parts = token
         .split(".")
         .collect::<Vec<&str>>()
@@ -70,14 +69,16 @@ pub fn split_jwe(token: &str) -> Result<[&str; 5], JweParseError> {
 }
 
 pub fn parse_jwe(token: &str) -> Result<JweToken, JweParseError> {
-    let parts = split_jwe(token)?;
+    let [b64_header, b64_key, b64_iv, b64_cipher, b64_tag] = split_jwe(token)?;
 
-    let aad = parts[0].as_bytes().to_vec();
-    let header = parse_base64_string(parts[0])?;
-    let key_encrypted = get_base64().decode(parts[1])?;
-    let iv = get_base64().decode(parts[2])?;
-    let ciphertext = get_base64().decode(parts[3])?;
-    let tag = get_base64().decode(parts[4])?;
+    let decode = |s: &str| get_base64().decode(s);
+
+    let aad = b64_header.as_bytes().to_vec();
+    let header = parse_base64_string(b64_header)?;
+    let key_encrypted = decode(b64_key)?;
+    let iv = decode(b64_iv)?;
+    let ciphertext = decode(b64_cipher)?;
+    let tag = decode(b64_tag)?;
 
     Ok(JweToken::new(
         header,
