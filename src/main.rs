@@ -52,14 +52,9 @@ fn main() {
 
     let content_decryptor =
         AlgorithmFactory::get_content_decryptor(jwe_header.enc.as_str()).unwrap();
-    let cipher = content_decryptor
-        .decrypt_payload(
-            &key_decrypted,
-            &jwe_token.aad,
-            &jwe_token.iv,
-            &jwe_token.ciphertext,
-            &jwe_token.tag,
-        )
+
+    let cipher = jwe_token
+        .decrypt_content(&*content_decryptor, &key_decrypted)
         .unwrap();
 
     let payload_string = String::from_utf8(cipher).expect("payload is not valid UTF-8");

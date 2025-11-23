@@ -2,6 +2,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 
+use crate::jwe::algorithms::{ContentDecryptor, CryptoResult};
+
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq)]
 pub struct JweHeader {
     pub alg: String,
@@ -94,5 +96,13 @@ impl JweToken {
             ciphertext,
             tag,
         }
+    }
+
+    pub fn decrypt_content(
+        &self,
+        decryptor: &dyn ContentDecryptor,
+        cek: &[u8],
+    ) -> CryptoResult<Vec<u8>> {
+        decryptor.decrypt_payload(cek, &self.aad, &self.iv, &self.ciphertext, &self.tag)
     }
 }
