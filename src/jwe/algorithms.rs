@@ -46,6 +46,7 @@ impl ContentDecryptor for AesGcmContentDecryptor {
         if cek.len() != self.key_len {
             return Err("Cek length mismatch".into());
         }
+
         let payload_concat = [ciphertext, tag].concat();
         let payload = Payload {
             msg: &payload_concat,
@@ -55,6 +56,7 @@ impl ContentDecryptor for AesGcmContentDecryptor {
         let iv_array: [u8; 12] = iv
             .try_into()
             .map_err(|_| "IV length invalid: must be 12 bytes")?;
+
         let nonce = Nonce::from(iv_array);
 
         match self.key_len {
