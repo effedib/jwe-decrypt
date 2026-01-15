@@ -54,7 +54,7 @@ fn parse_base64_string(string_to_parse: &str) -> Result<String, JweParseError> {
 }
 
 pub fn split_jwe(token: &str) -> Result<[&str; 5], JweParseError> {
-    let parts = token
+    token
         .split(".")
         .collect::<Vec<&str>>()
         .try_into()
@@ -64,8 +64,7 @@ pub fn split_jwe(token: &str) -> Result<[&str; 5], JweParseError> {
             } else {
                 JweParseError::TooManyParts()
             }
-        });
-    parts
+        })
 }
 
 pub fn parse_jwe(token: &str) -> Result<JweToken, JweParseError> {

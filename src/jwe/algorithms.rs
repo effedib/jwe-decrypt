@@ -85,7 +85,7 @@ pub struct DirectKeyDecryptor;
 impl KeyDecryptor for DirectKeyDecryptor {
     fn decrypt_cek(&self, input_key: &[u8], encrypted_key: &[u8]) -> CryptoResult<Vec<u8>> {
         if !encrypted_key.is_empty() {
-            return Err(format!("With 'dir' algorithm, encrypted_key must be empty").into());
+            return Err("With 'dir' algorithm, encrypted_key must be empty".into());
         }
         Ok(input_key.to_vec())
     }
